@@ -11,19 +11,27 @@ np.random.seed(42)
 anchors = np.array([
     [0, 0],    # Anchor 1
     [10, 0],   # Anchor 2
-    [10, 10],  # Anchor 3
-    [0, 10]    # Anchor 4
+    [10, 5],  # Anchor 3
+    [0, 5]    # Anchor 4
 ])
+
+noise_sigma = 0.2
+noise_mean = 0.0
+bias_magnitude = 1.0
+num_anchors = 4
 
 # Define the true tag position
 true_position = np.array([5.0, 6.0])
+
+# Weight matrix (inverse of covariance)
+W = np.eye(num_anchors) / (noise_sigma ** 2)
 
 # Distance measurement function with noise and bias
 def measure_distance(true_pos, anchor_pos, bias_anchor=None, bias_value=0):
     """Calculate distance measurement with noise and optional bias"""
     true_dist = np.linalg.norm(true_pos - anchor_pos)
     # Add Gaussian noise (standard deviation 5cm)
-    noise = np.random.normal(0, 0.1)
+    noise = np.random.normal(noise_mean, noise_sigma)
     
     # Add bias to the specified anchor
     if bias_anchor is not None and np.array_equal(anchor_pos, bias_anchor):
@@ -61,7 +69,7 @@ for i in range(1000):
     bias_anchor_indices.append(bias_anchor_idx)
     
     # Generate random bias value (|bias| ≤ 20cm)
-    bias_value = random.uniform(-1.5, 1.5)
+    bias_value = random.uniform(-bias_magnitude, bias_magnitude)
     bias_values.append(bias_value)
     
     # Measure distances to all anchors

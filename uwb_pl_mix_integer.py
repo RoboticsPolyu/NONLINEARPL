@@ -10,17 +10,18 @@ np.random.seed(42)
 # Simulation parameters
 num_anchors = 4  # UWB anchors
 true_position = np.array([5.0, 6.0])  # True tag position [x, y]
-anchor_positions = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])  # Anchor positions
+anchor_positions = np.array([[0, 0], [10, 0], [10, 5], [0, 5]])  # Anchor positions
 
 # Noise parameters
-gaussian_std = 0.1  # Standard deviation of Gaussian noise
-bias_magnitude = 1.5  # Magnitude of bias in one anchor
+gaussian_std = 0.2  # Standard deviation of Gaussian noise
+bias_magnitude = 1.0  # Magnitude of bias in one anchor
 biased_anchor_idx = 2  # Index of the anchor with bias
 
 # Generate measurements
 true_distances = np.linalg.norm(anchor_positions - true_position, axis=1)
 noisy_distances = true_distances + np.random.normal(0, gaussian_std, num_anchors)
-noisy_distances[biased_anchor_idx] += bias_magnitude  # Add bias to one anchor
+bias_value = np.random.uniform(-bias_magnitude, bias_magnitude)
+noisy_distances[biased_anchor_idx] += bias_value  # Add bias to one anchor
 
 # Weight matrix (inverse of covariance)
 W = np.eye(num_anchors) / (gaussian_std ** 2)

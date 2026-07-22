@@ -193,10 +193,94 @@ valid_mask_or = ~np.isnan(estimated_positions_with_or).any(axis=1)
 valid_estimates_or = estimated_positions_with_or[valid_mask_or]
 valid_bias_anchors_or = bias_anchor_indices[valid_mask_or]
 valid_bias_values_or = bias_values[valid_mask_or]
+valid_bias_values = bias_values[valid_mask]
 
 # Calculate positioning errors
 errors = np.linalg.norm(valid_estimates - true_position, axis=1)
 errors_or = np.linalg.norm(valid_estimates_or - true_position, axis=1)
+
+# Create figure with subplots
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+
+# Plot 1: All estimated positions
+ax1.scatter(anchors[:, 0], anchors[:, 1], c='red', s=100, marker='^', label='Anchors')
+ax1.scatter(true_position[0], true_position[1], c='green', s=150, marker='*', label='True Position')
+ax1.scatter(valid_estimates[:, 0], valid_estimates[:, 1], c='blue', alpha=0.5, s=10, label='Estimated Positions')
+
+ax1.set_xlabel('X (m)')
+ax1.set_ylabel('Y (m)')
+ax1.set_title('UWB Positioning with Anchor Bias (1000 trials)')
+ax1.legend()
+ax1.grid(True)
+ax1.axis('equal')
+
+# Plot 2: Color by which anchor had bias
+colors = ['red', 'green', 'blue', 'purple']
+for i in range(4):
+    mask = valid_bias_anchors_or == i
+    ax2.scatter(valid_estimates[mask, 0], valid_estimates[mask, 1], 
+               c=colors[i], alpha=0.6, s=10, label=f'Anchor {i+1} biased')
+
+ax2.scatter(anchors[:, 0], anchors[:, 1], c='black', s=100, marker='^', label='Anchors')
+ax2.scatter(true_position[0], true_position[1], c='orange', s=150, marker='*', label='True Position')
+
+ax2.set_xlabel('X (m)')
+ax2.set_ylabel('Y (m)')
+ax2.set_title('Estimated Positions Colored by Biased Anchor')
+ax2.legend()
+ax2.grid(True)
+ax2.axis('equal')
+
+plt.tight_layout()
+
+# Create figure with subplots for probability curves
+fig1, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 5))
+
+# Plot 1: Probability Density Function (PDF)
+ax1.hist(errors_or, bins=50, density=True, alpha=0.7, color='skyblue', edgecolor='black')
+# Add KDE curve
+kde = stats.gaussian_kde(errors_or)
+x_range = np.linspace(0, np.max(errors_or), 200)
+ax1.plot(x_range, kde(x_range), 'r-', linewidth=2, label='KDE')
+ax1.set_xlabel('Positioning Error (m)')
+ax1.set_ylabel('Probability Density')
+ax1.set_title('Probability Density Function (PDF)\nof Positioning Errors')
+ax1.grid(True, alpha=0.3)
+ax1.legend()
+
+# Plot 2: Cumulative Distribution Function (CDF)
+sorted_errors = np.sort(errors_or)
+cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
+ax2.plot(sorted_errors, cdf, 'b-', linewidth=2)
+ax2.set_xlabel('Positioning Error (m)')
+ax2.set_ylabel('Cumulative Probability')
+ax2.set_title('Cumulative Distribution Function (CDF)\nof Positioning Errors')
+ax2.grid(True, alpha=0.3)
+
+# Add some key percentiles to CDF plot
+percentiles = [50, 68, 80, 90, 95, 99]
+for p in percentiles:
+    error_p = np.percentile(errors, p)
+    ax2.axvline(x=error_p, color='red', linestyle='--', alpha=0.7)
+    ax2.text(error_p, 0.1, f'{p}%: {error_p:.3f}m', 
+             rotation=90, ha='right', va='bottom')
+
+# Plot 3: Error vs Bias Magnitude scatter plot
+ax3.scatter(np.abs(valid_bias_values), errors, alpha=0.5, s=20)
+ax3.set_xlabel('Bias Magnitude (m)')
+ax3.set_ylabel('Positioning Error (m)')
+ax3.set_title('Positioning Error vs Bias Magnitude')
+ax3.grid(True, alpha=0.3)
+
+# Add trend line
+z = np.polyfit(np.abs(valid_bias_values), errors, 1)
+p = np.poly1d(z)
+x_trend = np.linspace(0, np.max(np.abs(valid_bias_values)), 100)
+ax3.plot(x_trend, p(x_trend), "r--", linewidth=2, 
+         label=f'Trend: y = {z[0]:.3f}x + {z[1]:.3f}')
+ax3.legend()
+
+plt.tight_layout()
 
 # Create figure with subplots
 fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(15, 12))
