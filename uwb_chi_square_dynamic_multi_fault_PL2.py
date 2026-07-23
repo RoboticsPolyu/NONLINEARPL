@@ -276,7 +276,7 @@ def compute_advanced_raim_pl(measurements, anchors, W, alpha_pl, AL):
     return hpl, alarm, subsets
 
 # ------------------------------
-# 6. Protection Level Calculators (UNIFIED QUANTILES)
+# 6. Protection Level Calculators
 # ------------------------------
 def compute_pl_traditional(H, W, chi2_threshold, alpha_pl):
     """
@@ -497,13 +497,11 @@ def generate_bias_sequence(num_steps, fault_start, fault_end,
     if duration <= 0:
         return np.zeros(num_steps)
     seq = amplitude * np.sin(2 * np.pi * frequency * (t - fault_start) / duration + phase)
+    seq = amplitude * np.ones(num_steps)
     seq[:fault_start] = 0.0
     seq[fault_end:] = 0.0
     return seq
 
-# ------------------------------
-# 8. Main Simulation
-# ------------------------------
 def run_simulation():
     num_steps = 1000
     t = np.linspace(0, 10 * np.pi, num_steps)
@@ -551,6 +549,10 @@ def run_simulation():
     fault_active = np.zeros(num_steps, dtype=bool)
     excluded_history = []
 
+    # --- NEW: Storage for chi-square test statistics ---
+    sse_vals = np.full(num_steps, np.nan)
+    threshold_vals = np.full(num_steps, np.nan)
+
     # Storage for optimal d vectors (optional)
     d1_x_hist = np.full((num_steps, N_anchors), np.nan)
     d2_x_hist = np.full((num_steps, N_anchors), np.nan)
@@ -597,11 +599,23 @@ def run_simulation():
 
         est_traj[k] = pos_est
         true_error[k] = pos_est - true_pos
-        excluded_history.append([i for i in range(N_anchors) if i not in keep_idx])
+
+        # Record excluded anchors (those not in keep_idx)
+        excluded_ids = [i for i in range(N_anchors) if i not in keep_idx]
+        excluded_history.append(excluded_ids)
 
         # Chi-square threshold for the kept subset
         dof_kept = n_kept - 2
         chi2_thr = chi2.ppf(1 - alpha, dof_kept) if dof_kept > 0 else 0.0
+
+        # Compute SSE for the kept subset
+        if n_kept >= 2:
+            r = kept_meas - compute_ranges(pos_est, kept_anchors)
+            sse = r @ W_kept @ r
+        else:
+            sse = np.nan
+        sse_vals[k] = sse
+        threshold_vals[k] = chi2_thr
 
         # Advanced RAIM HPL based on the KEPT subset
         hpl, alarm, _ = compute_advanced_raim_pl(kept_meas, kept_anchors, W_kept, alpha_pl, AL)
@@ -623,6 +637,14 @@ def run_simulation():
         PL_radial_new[k], bias_rad = compute_pl_section27_radial(
             H, W_kept, chi2_thr, max_faults=2, alpha_pl=alpha_pl
         )
+
+    # ---- Ensure excluded_history length matches num_steps ----
+    if len(excluded_history) > num_steps:
+        print(f"Warning: excluded_history length {len(excluded_history)} > num_steps {num_steps}. Trimming.")
+        excluded_history = excluded_history[:num_steps]
+    elif len(excluded_history) < num_steps:
+        print(f"Warning: excluded_history length {len(excluded_history)} < num_steps {num_steps}. Padding with empty lists.")
+        excluded_history.extend([[] for _ in range(num_steps - len(excluded_history))])
 
     # ---- Post-processing and plots ----
     time = np.arange(num_steps)
@@ -660,18 +682,16 @@ def run_simulation():
     # --------------------------------------------------
     fig2, (ax2a, ax2b) = plt.subplots(2, 1, figsize=(6.8, 4.5), sharex=True)
     # Subplot 1: X-direction
-    ax2a.plot(time, abs(true_error[:, 0]), 'b-', lw=0.8, label='|Error X|')
-    # ax2a.plot(time, PL_x_trad, 'r-', lw=1.0, label='Trad PL X')
     ax2a.plot(time, PL_x_new, 'g-', lw=1.0, label='PL X')
+    ax2a.plot(time, abs(true_error[:, 0]), 'b.-', lw=0.4, label='|Error X|')
     ax2a.axvspan(fault_start, fault_end-1, alpha=0.15, color='red')
     ax2a.set_ylabel('Error / PL (m)')
     ax2a.legend(fontsize=6, loc='upper left')
     ax2a.grid(True)
     ax2a.set_title('X-direction', fontsize=8)
     # Subplot 2: Y-direction
-    ax2b.plot(time, abs(true_error[:, 1]), 'b-', lw=0.8, label='|Error Y|')
-    # ax2b.plot(time, PL_y_trad, 'r-', lw=1.0, label='Trad PL Y')
     ax2b.plot(time, PL_y_new, 'g-', lw=1.0, label='PL Y')
+    ax2b.plot(time, abs(true_error[:, 1]), 'b.-', lw=0.4, label='|Error Y|')
     ax2b.axvspan(fault_start, fault_end-1, alpha=0.15, color='red')
     ax2b.set_xlabel('Time step')
     ax2b.set_ylabel('Error / PL (m)')
@@ -689,11 +709,9 @@ def run_simulation():
     PL_norm_new_xy = np.sqrt(PL_x_new**2 + PL_y_new**2)
 
     fig3, ax3 = plt.subplots(figsize=(6.8, 3.5))
-    # ax3.plot(time, PL_norm_trad, 'r--', lw=0.8, label='Trad |PL|')
-    # ax3.plot(time, PL_norm_new_xy, 'c--', lw=0.8, label='Sec 2.7 |PL| (X/Y)')
     ax3.plot(time, PL_radial_new, 'g-', lw=1.2, label='Radial PL')
-    ax3.plot(time, hpl_vals, 'm-', lw=0.8, label='ARAIM HPL')
-    ax3.plot(time, error_norm, 'b-', lw=0.8, label='|Error| (Euclidean)')
+    ax3.plot(time, hpl_vals, 'm--', lw=0.8, label='ARAIM HPL')
+    ax3.plot(time, error_norm, 'b.-', lw=0.4, label='|Error| (Euclidean)')
     ax3.axhline(y=AL, color='k', linestyle=':', lw=0.8, label=f'AL = {AL} m')
     ax3.axvspan(fault_start, fault_end-1, alpha=0.15, color='red')
     ax3.set_xlabel('Time step')
@@ -704,6 +722,71 @@ def run_simulation():
     fig3.tight_layout()
     fig3.savefig('fig_radial_pl.pdf', format='pdf')
     plt.close(fig3)
+
+    # --------------------------------------------------
+    # Figure 4: Chi-square test, threshold, and detection analysis (CORRECTED)
+    # --------------------------------------------------
+    fig4, (ax4a, ax4b) = plt.subplots(2, 1, figsize=(6.8, 4.5), sharex=True)
+
+    # Upper: SSE and threshold (unchanged)
+    ax4a.plot(time, sse_vals, 'b-', lw=1.0, label='SSE (χ² statistic)')
+    ax4a.plot(time, threshold_vals, 'r--', lw=1.0, label='Threshold')
+    ax4a.axvspan(fault_start, fault_end-1, alpha=0.15, color='red', label='Fault active')
+    ax4a.set_ylabel('χ² value')
+    ax4a.legend(fontsize=6, loc='upper left')
+    ax4a.grid(True)
+    ax4a.set_title('Chi‑square test statistic and threshold (FDE)', fontsize=8)
+
+    # Lower: Detection results with time‑aware logic
+    corr_times = []
+    corr_ids = []
+    false_times = []
+    false_ids = []
+    miss_times = []
+    miss_ids = []
+
+    for k in range(num_steps):
+        # 1) Collect exclusions at this time step
+        excl_ids = excluded_history[k] if k < len(excluded_history) else []
+        fault_on = fault_active[k]
+
+        # 2) Classify each excluded anchor
+        for idx in excl_ids:
+            if fault_on and (idx in fault_indices):
+                # Correct detection: fault active AND anchor is faulty
+                corr_times.append(k)
+                corr_ids.append(idx)
+            else:
+                # False alarm: either no fault OR anchor is not faulty
+                false_times.append(k)
+                false_ids.append(idx)
+
+        # 3) Missed detections: faulty anchors NOT excluded during fault
+        if fault_on:
+            for idx in fault_indices:
+                if idx not in excl_ids:
+                    miss_times.append(k)
+                    miss_ids.append(idx)
+
+    # Plot the three categories
+    if corr_times:
+        ax4b.scatter(corr_times, corr_ids, s=1, c='green', marker='o', alpha=0.7, label='Correct detection')
+    if false_times:
+        ax4b.scatter(false_times, false_ids, s=5, c='red', marker='x', alpha=0.7, label='False alarm')
+    if miss_times:
+        ax4b.scatter(miss_times, miss_ids, s=5, c='blue', marker='.', alpha=0.7, label='Missed detection')
+
+    ax4b.axvspan(fault_start, fault_end-1, alpha=0.15, color='red')
+    ax4b.set_xlabel('Time step')
+    ax4b.set_ylabel('Anchor index')
+    ax4b.set_yticks(range(N_anchors))
+    ax4b.grid(True, axis='y', linestyle=':')
+    ax4b.legend(fontsize=6, loc='upper right')
+    ax4b.set_title('Detection status of excluded anchors and missed faults (time‑aware)', fontsize=8)
+
+    fig4.tight_layout()
+    fig4.savefig('fig_chi2_exclusion.pdf', format='pdf')
+    plt.close(fig4)
 
     # ---- Statistics ----
     fault_steps = np.sum(fault_active)
@@ -724,12 +807,26 @@ def run_simulation():
         print(f"  Detection rate: {1 - missed_araim/fault_steps:.3f}")
     print(f"  Mean HPL: {np.mean(hpl_vals):.3f} m, Max HPL: {np.max(hpl_vals):.3f} m")
 
-    # FDE
+    # FDE exclusions
     excluded_counts = [len(e) for e in excluded_history]
     print(f"\nFDE exclusions: mean {np.mean(excluded_counts):.2f}, max {np.max(excluded_counts)}")
-    fault_excl = [excl for k, excl in enumerate(excluded_history) if fault_active[k]]
+
+    # Safe computation of fault_excl
+    fault_excl = [excl for k, excl in enumerate(excluded_history) if k < num_steps and fault_active[k]]
     if fault_excl:
         print(f"Avg excluded anchors during faults: {np.mean([len(e) for e in fault_excl]):.2f}")
+
+    # Detection performance metrics (correct, false, missed)
+    total_corr = len(corr_times)
+    total_false = len(false_times)
+    total_miss = len(miss_times)
+    print("\n=== Detection Performance (during fault active period) ===")
+    print(f"Correct exclusions (faulty anchor removed during fault): {total_corr}")
+    print(f"False alarms (non‑faulty anchor removed OR removal outside fault): {total_false}")
+    print(f"Missed detections (faulty anchor not removed during fault): {total_miss}")
+    if fault_steps > 0:
+        total_possible = len(fault_indices) * fault_steps
+        print(f"Missed detection rate: {total_miss / total_possible:.2%}")
 
     # PL coverage
     cover_trad_x = np.all(np.abs(true_error[:, 0]) <= PL_x_trad)
@@ -756,7 +853,7 @@ def run_simulation():
 
     # ---- Additional stats for Radial PL and ARAIM (Euclidean norm) ----
     cover_araim_radial = np.mean(error_norm <= hpl_vals) * 100
-    cover_radial_new = np.mean(error_norm <= PL_radial_new) * 100
+    cover_radial_new_pct = np.mean(error_norm <= PL_radial_new) * 100
     mean_hpl = np.mean(hpl_vals)
     max_hpl = np.max(hpl_vals)
     mean_pl_radial = np.mean(PL_radial_new)
@@ -764,7 +861,8 @@ def run_simulation():
 
     print("\n=== Radial PL vs ARAIM HPL (Euclidean norm) ===")
     print(f"ARAIM HPL: Coverage = {cover_araim_radial:.1f}%, Mean = {mean_hpl:.3f} m, Max = {max_hpl:.3f} m")
-    print(f"Section 2.7 Radial PL: Coverage = {cover_radial_new:.1f}%, Mean = {mean_pl_radial:.3f} m, Max = {max_pl_radial:.3f} m")
+    print(f"Section 2.7 Radial PL: Coverage = {cover_radial_new_pct:.1f}%, Mean = {mean_pl_radial:.3f} m, Max = {max_pl_radial:.3f} m")
+
 
 if __name__ == "__main__":
     run_simulation()

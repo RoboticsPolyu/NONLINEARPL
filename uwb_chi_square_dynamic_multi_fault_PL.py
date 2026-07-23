@@ -17,18 +17,36 @@ import itertools
 import matplotlib.pyplot as plt
 
 # ------------------------------
+# Global plot settings for single-column paper layout
+# ------------------------------
+plt.rcParams.update({
+    'font.size': 8,
+    'axes.titlesize': 9,
+    'axes.labelsize': 8,
+    'legend.fontsize': 7,
+    'xtick.labelsize': 7,
+    'ytick.labelsize': 7,
+    'lines.linewidth': 1.2,
+    'lines.markersize': 4,
+    'figure.dpi': 150,
+    'savefig.dpi': 300,
+    'savefig.bbox': 'tight',
+    'pdf.fonttype': 42,   # Ensure editable text in PDF
+})
+
+# ------------------------------
 # 1. System Configuration
 # ------------------------------
-# np.random.seed(42)          # change or comment for fully random runs
+# np.random.seed(42)          
 
 center = np.array([5.0, 5.0])
 radius = 10.0
 angles = np.deg2rad([0, 30, 60, 120, 180, 240, 300])
 anchors = np.array([center + radius * np.array([np.cos(a), np.sin(a)]) for a in angles])
 
-N_anchors = anchors.shape[0]          # 6
+N_anchors = anchors.shape[0] # 6
 state_dim = 2                         # x, y
-sigma = 0.1                           # measurement noise std
+sigma = 0.1                            # measurement noise std
 W_full = np.diag(1.0 / sigma**2 * np.ones(N_anchors))
 
 # Integrity / FDE parameters
@@ -627,26 +645,31 @@ def run_simulation():
     plt.tight_layout()
 
     # ---- Plot d1_x and d2_x over time ----
-    plt.figure(figsize=(14, 8))
+    plt.figure(figsize=(6.8, 3.5))
+
     plt.subplot(2, 1, 1)
     for i in range(N_anchors):
         plt.plot(time, d1_x_hist[:, i], label=f'Anch {i}')
-    plt.axvspan(fault_start, fault_end-1, alpha=0.15, color='red', label='Faults')
-    plt.ylabel('d1_x (m)')
-    plt.title('Optimal fault vector d1_x (X-direction)')
-    plt.grid(True); plt.legend(ncol=3)
+    plt.axvspan(fault_start, fault_end-1, lw=1, alpha=0.15, color='red', label='Faults')
+    plt.ylabel('d1 (m)')
+    plt.title('Optimal fault vector d1')
+    plt.grid(True)
+    plt.legend(ncol=6)
+    plt.ylim(-1, 1.5)   
 
     plt.subplot(2, 1, 2)
     for i in range(N_anchors):
         plt.plot(time, d2_x_hist[:, i], label=f'Anch {i}')
-    plt.axvspan(fault_start, fault_end-1, alpha=0.15, color='red', label='Faults')
+    plt.axvspan(fault_start, fault_end-1, lw=1, alpha=0.15, color='red', label='Faults')
     plt.xlabel('Time step')
-    plt.ylabel('d2_x (m)')
-    plt.title('Optimal fault vector d2_x (X-direction)')
-    plt.grid(True); plt.legend(ncol=3)
-    plt.tight_layout()
+    plt.ylabel('d2 (m)')
+    plt.title('Optimal fault vector d2')
+    plt.grid(True)
+    plt.legend(ncol=6)
+    plt.ylim(-1, 1.5) 
 
     plt.tight_layout()
+    plt.savefig('d1_d2.pdf', format='pdf')
     plt.show()
 
     # ---- Statistics ----
