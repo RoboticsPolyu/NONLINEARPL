@@ -18,6 +18,10 @@ from scipy.optimize import root_scalar
 import itertools
 import matplotlib.pyplot as plt
 
+plt.rcParams['font.family'] = 'Times New Roman'
+plt.rcParams['font.size'] = 10
+plt.rcParams['mathtext.fontset'] = 'stix'  # For mathematical symbols
+
 # ------------------------------
 # Global plot settings for single-column paper layout
 # ------------------------------
@@ -46,9 +50,9 @@ radius = 10.0
 angles = np.deg2rad([0, 30, 60, 120, 180, 240, 300])
 anchors = np.array([center + radius * np.array([np.cos(a), np.sin(a)]) for a in angles])
 
-N_anchors = anchors.shape[0]          # 6
+N_anchors = anchors.shape[0] # 6
 state_dim = 2                         # x, y
-sigma = 0.1                           # measurement noise std
+sigma = 0.1                            # measurement noise std
 W_full = np.diag(1.0 / sigma**2 * np.ones(N_anchors))
 
 # Integrity / FDE parameters

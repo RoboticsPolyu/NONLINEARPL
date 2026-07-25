@@ -4,15 +4,33 @@ import random
 from scipy.optimize import least_squares
 from scipy import stats
 
+# ------------------------------
+# Global plot settings for single-column paper layout
+# ------------------------------
+plt.rcParams.update({
+    'font.size': 8,
+    'axes.titlesize': 9,
+    'axes.labelsize': 8,
+    'legend.fontsize': 7,
+    'xtick.labelsize': 7,
+    'ytick.labelsize': 7,
+    'lines.linewidth': 1.2,
+    'lines.markersize': 4,
+    'figure.dpi': 150,
+    'savefig.dpi': 300,
+    'savefig.bbox': 'tight',
+    'pdf.fonttype': 42,   # Ensure editable text in PDF
+})
+
 # Set random seed for reproducibility
 np.random.seed(42)
 
 # Define four anchor positions (x, y)
 anchors = np.array([
     [0, 0],    # Anchor 1
-    [10, 0],   # Anchor 2
+    [10, 0],  # Anchor 2
     [10, 5],  # Anchor 3
-    [0, 5]    # Anchor 4
+    [0, 5]     # Anchor 4
 ])
 
 noise_sigma = 0.2
@@ -21,7 +39,7 @@ bias_magnitude = 1.0
 num_anchors = 4
 
 # Define the true tag position
-true_position = np.array([5.0, 6.0])
+true_position = np.array([5.0, 3.0])
 
 # Weight matrix (inverse of covariance)
 W = np.eye(num_anchors) / (noise_sigma ** 2)
@@ -96,37 +114,27 @@ valid_bias_values = bias_values[valid_mask]
 # Calculate positioning errors
 errors = np.linalg.norm(valid_estimates - true_position, axis=1)
 
-# Create figure with subplots
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
 
-# Plot 1: All estimated positions
-ax1.scatter(anchors[:, 0], anchors[:, 1], c='red', s=100, marker='^', label='Anchors')
-ax1.scatter(true_position[0], true_position[1], c='green', s=150, marker='*', label='True Position')
-ax1.scatter(valid_estimates[:, 0], valid_estimates[:, 1], c='blue', alpha=0.5, s=10, label='Estimated Positions')
+fig, ax = plt.subplots(figsize=(8, 6))
 
-ax1.set_xlabel('X (m)')
-ax1.set_ylabel('Y (m)')
-ax1.set_title('UWB Positioning with Anchor Bias (1000 trials)')
-ax1.legend()
-ax1.grid(True)
-ax1.axis('equal')
-
-# Plot 2: Color by which anchor had bias
+# Color the estimates by which anchor had the bias
 colors = ['red', 'green', 'blue', 'purple']
 for i in range(4):
     mask = valid_bias_anchors == i
-    ax2.scatter(valid_estimates[mask, 0], valid_estimates[mask, 1], 
+    ax.scatter(valid_estimates[mask, 0], valid_estimates[mask, 1],
                c=colors[i], alpha=0.6, s=10, label=f'Anchor {i+1} biased')
 
-ax2.scatter(anchors[:, 0], anchors[:, 1], c='black', s=100, marker='^', label='Anchors')
-ax2.scatter(true_position[0], true_position[1], c='orange', s=150, marker='*', label='True Position')
+# Plot anchors and true position
+ax.scatter(anchors[:, 0], anchors[:, 1], c='black', s=100, marker='^', label='Anchors')
+ax.scatter(true_position[0], true_position[1], c='orange', s=150, marker='*', label='True Position')
 
-ax2.set_xlabel('X (m)')
-ax2.set_ylabel('Y (m)')
-ax2.set_title('Estimated Positions Colored by Biased Anchor')
-ax2.legend()
-ax2.grid(True)
-ax2.axis('equal')
+# Labels, title, legend, grid, and equal aspect
+ax.set_xlabel('X (m)')
+ax.set_ylabel('Y (m)')
+ax.set_title('Estimated Positions Colored by Biased Anchor')
+ax.legend()
+ax.grid(True)
+ax.axis('equal')
 
 plt.tight_layout()
 
